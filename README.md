@@ -1,9 +1,34 @@
+```text
+╔═══════════════════════════════════════════════════════════════════════════╗ 
++                                                                            ║
+║    ██████╗  █████╗ ██████╗ ████████╗ ██████╗ ██████╗                      ║ 
+║    ██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔═══██╗██╔══██╗                     ║ 
+║    ██████╔╝███████║██████╔╝   ██║   ██║   ██║██████╔╝                     ║ 
+║    ██╔══██╗██╔══██║██╔═══╝    ██║   ██║   ██║██╔══██╗                     ║ 
+║    ██║  ██║██║  ██║██║        ██║   ╚██████╔╝██║  ██║                     ║ 
+║    ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═╝                     ║ 
+║                                                                           ║ 
+║         Offensive/Defensive Research Framework | Built on Claude Code     ║ 
+║         v1.0-alpha                                                        ║ 
+║                                                                           ║ 
+║         By Gadi Evron & Daniel Cuthbert                                   ║ 
+║                                                                           - 
+╚═══════════════════════════════════════════════════════════════════════════╝ 
+                              __                                              
+                             / _)                                             
+                      .-^^^-/ /                                               
+                   __/       /                                                
+                  <__.|_|-|_|                                                 
+```
+
 # RAPTOR - Autonomous Offensive/Defensive Security Research Framework, based on Claude Code
 
-**Authors:** Gadi Evron & Daniel Cuthbert
-             (@gadievron, @danielcuthbert)
+**Authors:** Gadi Evron & Daniel Cuthbert (@gadievron, @danielcuthbert)
+
 **License:** MIT (see LICENSE file)
+
 **Repository:** https://github.com/gadievron/raptor
+
 **Dependencies:** See DEPENDENCIES.md for external tools and licenses
 
 ---
@@ -16,11 +41,12 @@ RAPTOR stands for Recursive Autonomous Penetration Testing and Observation Robot
 
 It autonomously:
 
-1. **Scans** your code with Semgrep and CodeQL
-2. **Analyses** vulnerabilities using advanced LLM reasoning
-3. **Generates** working exploit proof-of-concepts
-4. **Creates** secure patches to fix vulnerabilities
-5. **Reports** everything in structured formats
+1. **Scans** your code with Semgrep and CodeQL and tries dataflow validation
+2. **Fuzzes** your binaries with American Fuzzy Lop (AFL)
+3. **Analyses** vulnerabilities using advanced LLM reasoning
+4. **Generates** working exploit proof-of-concepts
+5. **Creates** secure patches to fix vulnerabilities
+6. **Reports** everything in structured formats
 
 Unlike traditional tools that just flag issues, RAPTOR deeply understands your code, proves exploitability, and proposes fixes.
 
@@ -46,8 +72,10 @@ claude
 
 # 4. Start RAPTOR
 Just say "hi" to get started.
-```
 
+# 5. Testing
+Feel free to try the various capabilities through the tests included with RAPTOR.
+```
 
 **See:** `docs/CLAUDE_CODE_USAGE.md` for complete guide
 
@@ -55,14 +83,31 @@ Just say "hi" to get started.
 
 ## Available Commands
 
+**Main entry point:**
+```
+/raptor   - RAPTOR security testing assistant (start here for guidance)
+```
+
 **Security testing:**
 ```
-/scan     - Static code analysis
-/fuzz     - Binary fuzzing
+/scan     - Static code analysis (Semgrep + CodeQL)
+/fuzz     - Binary fuzzing with AFL++
 /web      - Web application security testing
-/agentic  - Full autonomous workflow (most comprehensive)
-/codeql   - CodeQL-only deep analysis
-/analyze  - LLM analysis of existing SARIF files
+/agentic  - Full autonomous workflow (analysis + exploit/patch generation)
+/codeql   - CodeQL-only deep analysis with dataflow
+/analyze  - LLM analysis only (no exploit/patch generation - 50% faster & cheaper)
+```
+
+**Exploit development & patching:**
+```
+/exploit  - Generate exploit proof-of-concepts (beta)
+/patch    - Generate security patches for vulnerabilities (beta)
+```
+
+**Development & testing:**
+```
+/create-skill    - Save custom approaches (experimental)
+/test-workflows  - Run comprehensive test suite (9 test categories)
 ```
 
 **Expert personas:** (9 total, load on-demand)
@@ -71,10 +116,8 @@ Mark Dowd, Charlie Miller/Halvar Flake, Security Researcher, Patch Engineer,
 Penetration Tester, Fuzzing Strategist, Binary Exploitation Specialist,
 CodeQL Dataflow Analyst, CodeQL Finding Analyst
 
-Usage: "Use [persona name] persona"
+Usage: "Use [persona name]"
 ```
-
-**Skills:** `/create-skill` - Save custom approaches (alpha)
 
 **See:** `docs/CLAUDE_CODE_USAGE.md` for detailed examples and workflows
 
@@ -108,13 +151,18 @@ Usage: "Use [persona name] persona"
 
 ## LLM Providers
 
+Model selection and API use is handled through Claude Code natively.
+
+(very much) Eperimental benchmark for exploit generation:
+
 | Provider             | Exploit Quality         | Cost        |
 |----------------------|-------------------------|-------------|
 | **Anthropic Claude** | ✅ Compilable C code    | ~$0.01/vuln |
 | **OpenAI GPT-4**     | ✅ Compilable C code    | ~$0.01/vuln |
+| **Gemini 2.5**       | ✅ Compilable C code    | ~$0.01/vuln |
 | **Ollama (local)**   | ❌ Often broken         | FREE        |
 
-**Note:** Exploit generation requires frontier models (Claude or GPT-4). Local models work for analysis but may produce non-compilable exploit code.
+**Note:** Exploit generation requires frontier models (Claude, GPT, or Gemini). Local models work for analysis but may produce non-compilable exploit code.
 
 ---
 
@@ -141,6 +189,7 @@ python3 raptor.py fuzz --binary /path/to/binary --duration 3600
 - **FUZZING_QUICKSTART.md** - Binary fuzzing guide
 - **DEPENDENCIES.md** - External tools and licenses
 - **tiers/personas/README.md** - All 9 expert personas
+- **TESTING.md** - Test suite documentation and user stories
 
 ---
 
@@ -158,9 +207,10 @@ RAPTOR is in alpha, and we welcome contributions in:
 - Your idea here
 
 **Submit pull requests with:**
-- Clear description of capability
-- Test cases
-- Documentation updates
+We'd love to find new collaborators. Surprise us.
+
+Chat with us on the #raptor channel at the Prompt||GTFO Slack:
+https://join.slack.com/t/promptgtfo/shared_invite/zt-3alf92eqe-BpVLxPbWTI50Tbl11Hl46Q
 
 **See:** `docs/EXTENDING_LAUNCHER.md` for developer guide
 
@@ -179,3 +229,6 @@ See LICENSE file for full text.
 **Issues:** https://github.com/gadievron/raptor/issues
 **Repository:** https://github.com/gadievron/raptor
 **Documentation:** See `docs/` directory
+
+Chat with us on the #raptor channel at the Prompt||GTFO Slack:
+https://join.slack.com/t/promptgtfo/shared_invite/zt-3alf92eqe-BpVLxPbWTI50Tbl11Hl46Q
