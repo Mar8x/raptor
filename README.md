@@ -12,7 +12,7 @@
 ║             Based on Claude Code - v1.0-alpha                             ║
 ║                                                                           ║ 
 ║             By Gadi Evron, Daniel Cuthbert                                ║
-║                and Thomas Dullien (Halvar Flake) & Michael Bargury        ║ 
+║                Thomas Dullien (Halvar Flake) & Michael Bargury            ║ 
 ║                                                                           - 
 ╚═══════════════════════════════════════════════════════════════════════════╝ 
                               __                                              
