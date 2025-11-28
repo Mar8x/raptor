@@ -907,30 +907,38 @@ def create_event_from_gharchive(row: dict[str, Any]) -> AnyEvent:
 def create_issue_observation_from_gharchive(
     repo: str,
     issue_number: int,
-    date: str,
+    timestamp: str,
     client: GHArchiveClient,
 ) -> IssueObservation:
     """Query GH Archive and create IssueObservation.
 
-    Goes to source (BigQuery) to verify and recover deleted issue content.
+    Args:
+        repo: Full repo name (owner/repo)
+        issue_number: Issue number
+        timestamp: ISO timestamp when event occurred (e.g. "2025-07-13T20:30:24Z")
+        client: GH Archive BigQuery client
+
+    Raises ValueError if issue not found at specified timestamp.
     """
     owner, name = repo.split("/", 1)
+    date = timestamp[:10].replace("-", "")  # YYYYMMDD
 
-    # Query BigQuery for the specific issue
     rows = client.query_events(
         repo=repo,
         event_type="IssuesEvent",
         from_date=date,
     )
 
-    # Find matching issue
+    # Find matching issue at timestamp
     for row in rows:
         payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
         issue = payload.get("issue", {})
-        if issue.get("number") == issue_number:
+        row_ts = str(row.get("created_at", ""))
+
+        if issue.get("number") == issue_number and timestamp in row_ts:
             state = issue.get("state", "open")
             return IssueObservation(
-                evidence_id=_generate_evidence_id("issue-gharchive", repo, str(issue_number)),
+                evidence_id=_generate_evidence_id("issue-gharchive", repo, str(issue_number), timestamp),
                 original_when=_parse_datetime(issue.get("created_at")),
                 original_who=_make_github_actor(issue.get("user", {}).get("login", row["actor_login"])),
                 original_what=f"Issue #{issue_number} created",
@@ -941,7 +949,7 @@ def create_issue_observation_from_gharchive(
                 verification=VerificationInfo(
                     source=EvidenceSource.GHARCHIVE,
                     bigquery_table=f"githubarchive.day.{date}",
-                    query=f"repo.name='{repo}' AND type='IssuesEvent'",
+                    query=f"repo.name='{repo}' AND type='IssuesEvent' AND created_at='{timestamp}'",
                 ),
                 issue_number=issue_number,
                 is_pull_request=False,
@@ -951,20 +959,27 @@ def create_issue_observation_from_gharchive(
                 is_deleted=True,
             )
 
-    raise ValueError(f"Issue #{issue_number} not found in GH Archive for {repo} on {date}")
+    raise ValueError(f"Issue #{issue_number} not found in GH Archive for {repo} at {timestamp}")
 
 
 def create_pr_observation_from_gharchive(
     repo: str,
     pr_number: int,
-    date: str,
+    timestamp: str,
     client: GHArchiveClient,
 ) -> IssueObservation:
     """Query GH Archive and create PR observation.
 
-    Goes to source (BigQuery) to verify and recover deleted PR content.
+    Args:
+        repo: Full repo name (owner/repo)
+        pr_number: PR number
+        timestamp: ISO timestamp when event occurred
+        client: GH Archive BigQuery client
+
+    Raises ValueError if PR not found at specified timestamp.
     """
     owner, name = repo.split("/", 1)
+    date = timestamp[:10].replace("-", "")
 
     rows = client.query_events(
         repo=repo,
@@ -975,12 +990,14 @@ def create_pr_observation_from_gharchive(
     for row in rows:
         payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
         pr = payload.get("pull_request", {})
-        if pr.get("number") == pr_number:
+        row_ts = str(row.get("created_at", ""))
+
+        if pr.get("number") == pr_number and timestamp in row_ts:
             state = pr.get("state", "open")
             if pr.get("merged"):
                 state = "merged"
             return IssueObservation(
-                evidence_id=_generate_evidence_id("pr-gharchive", repo, str(pr_number)),
+                evidence_id=_generate_evidence_id("pr-gharchive", repo, str(pr_number), timestamp),
                 original_when=_parse_datetime(pr.get("created_at")),
                 original_who=_make_github_actor(pr.get("user", {}).get("login", row["actor_login"])),
                 original_what=f"PR #{pr_number} created",
@@ -991,7 +1008,7 @@ def create_pr_observation_from_gharchive(
                 verification=VerificationInfo(
                     source=EvidenceSource.GHARCHIVE,
                     bigquery_table=f"githubarchive.day.{date}",
-                    query=f"repo.name='{repo}' AND type='PullRequestEvent'",
+                    query=f"repo.name='{repo}' AND type='PullRequestEvent' AND created_at='{timestamp}'",
                 ),
                 issue_number=pr_number,
                 is_pull_request=True,
@@ -1001,21 +1018,27 @@ def create_pr_observation_from_gharchive(
                 is_deleted=True,
             )
 
-    raise ValueError(f"PR #{pr_number} not found in GH Archive for {repo} on {date}")
+    raise ValueError(f"PR #{pr_number} not found in GH Archive for {repo} at {timestamp}")
 
 
 def create_commit_observation_from_gharchive(
     repo: str,
     sha: str,
-    date: str,
+    timestamp: str,
     client: GHArchiveClient,
 ) -> CommitObservation:
     """Query GH Archive and create CommitObservation.
 
-    Goes to source (BigQuery) to verify and recover commit metadata.
-    Useful for deleted repos or force-pushed commits.
+    Args:
+        repo: Full repo name (owner/repo)
+        sha: Commit SHA (full or prefix)
+        timestamp: ISO timestamp when push event occurred
+        client: GH Archive BigQuery client
+
+    Raises ValueError if commit not found at specified timestamp.
     """
     owner, name = repo.split("/", 1)
+    date = timestamp[:10].replace("-", "")
 
     rows = client.query_events(
         repo=repo,
@@ -1024,6 +1047,10 @@ def create_commit_observation_from_gharchive(
     )
 
     for row in rows:
+        row_ts = str(row.get("created_at", ""))
+        if timestamp not in row_ts:
+            continue
+
         payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
         for commit in payload.get("commits", []):
             if commit["sha"].startswith(sha) or sha.startswith(commit["sha"]):
@@ -1039,7 +1066,7 @@ def create_commit_observation_from_gharchive(
                     verification=VerificationInfo(
                         source=EvidenceSource.GHARCHIVE,
                         bigquery_table=f"githubarchive.day.{date}",
-                        query=f"repo.name='{repo}' AND type='PushEvent'",
+                        query=f"repo.name='{repo}' AND type='PushEvent' AND created_at='{timestamp}'",
                     ),
                     sha=commit["sha"],
                     message=commit.get("message", ""),
@@ -1058,20 +1085,25 @@ def create_commit_observation_from_gharchive(
                     is_dangling=True,
                 )
 
-    raise ValueError(f"Commit {sha} not found in GH Archive for {repo} on {date}")
+    raise ValueError(f"Commit {sha} not found in GH Archive for {repo} at {timestamp}")
 
 
-def create_force_push_observations_from_gharchive(
+def create_force_push_observation_from_gharchive(
     repo: str,
-    date: str,
+    timestamp: str,
     client: GHArchiveClient,
-) -> list[CommitObservation]:
-    """Query GH Archive for zero-commit PushEvents (force pushes).
+) -> CommitObservation:
+    """Query GH Archive for a specific force push event.
 
-    Recovers 'deleted' commit SHAs from force push before field.
-    Returns observations for commits that were overwritten.
+    Args:
+        repo: Full repo name (owner/repo)
+        timestamp: ISO timestamp when force push occurred
+        client: GH Archive BigQuery client
+
+    Raises ValueError if no force push found at specified timestamp.
     """
     owner, name = repo.split("/", 1)
+    date = timestamp[:10].replace("-", "")
 
     rows = client.query_events(
         repo=repo,
@@ -1079,48 +1111,48 @@ def create_force_push_observations_from_gharchive(
         from_date=date,
     )
 
-    observations = []
     for row in rows:
+        row_ts = str(row.get("created_at", ""))
+        if timestamp not in row_ts:
+            continue
+
         payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
         size = int(payload.get("size", 0))
         before_sha = payload.get("before", "0" * 40)
 
-        # Zero commits + non-null before = force push
         if size == 0 and before_sha != "0" * 40:
-            observations.append(
-                CommitObservation(
-                    evidence_id=_generate_evidence_id("forcepush-gharchive", repo, before_sha),
-                    original_when=_parse_datetime(row["created_at"]),
-                    original_who=_make_github_actor(row["actor_login"]),
-                    original_what=f"Commit overwritten by force push",
-                    observed_when=_parse_datetime(row["created_at"]),
-                    observed_by=EvidenceSource.GHARCHIVE,
-                    observed_what=f"Force push detected, before SHA: {before_sha[:8]}",
-                    repository=_make_github_repo(owner, name, row.get("repo_id")),
-                    verification=VerificationInfo(
-                        source=EvidenceSource.GHARCHIVE,
-                        bigquery_table=f"githubarchive.day.{date}",
-                        query=f"repo.name='{repo}' AND type='PushEvent' AND size=0",
-                    ),
-                    sha=before_sha,
-                    message="[Force pushed - message unknown, fetch via GitHub API]",
-                    author=CommitAuthor(
-                        name="unknown",
-                        email="unknown",
-                        date=_parse_datetime(row["created_at"]),
-                    ),
-                    committer=CommitAuthor(
-                        name="unknown",
-                        email="unknown",
-                        date=_parse_datetime(row["created_at"]),
-                    ),
-                    parents=[],
-                    files=[],
-                    is_dangling=True,
-                )
+            return CommitObservation(
+                evidence_id=_generate_evidence_id("forcepush-gharchive", repo, before_sha, timestamp),
+                original_when=_parse_datetime(row["created_at"]),
+                original_who=_make_github_actor(row["actor_login"]),
+                original_what="Commit overwritten by force push",
+                observed_when=_parse_datetime(row["created_at"]),
+                observed_by=EvidenceSource.GHARCHIVE,
+                observed_what=f"Force push detected, before SHA: {before_sha[:8]}",
+                repository=_make_github_repo(owner, name, row.get("repo_id")),
+                verification=VerificationInfo(
+                    source=EvidenceSource.GHARCHIVE,
+                    bigquery_table=f"githubarchive.day.{date}",
+                    query=f"repo.name='{repo}' AND type='PushEvent' AND created_at='{timestamp}' AND size=0",
+                ),
+                sha=before_sha,
+                message="[Force pushed - fetch content via GitHub API]",
+                author=CommitAuthor(
+                    name="unknown",
+                    email="unknown",
+                    date=_parse_datetime(row["created_at"]),
+                ),
+                committer=CommitAuthor(
+                    name="unknown",
+                    email="unknown",
+                    date=_parse_datetime(row["created_at"]),
+                ),
+                parents=[],
+                files=[],
+                is_dangling=True,
             )
 
-    return observations
+    raise ValueError(f"Force push not found in GH Archive for {repo} at {timestamp}")
 
 
 # =============================================================================
@@ -1663,20 +1695,43 @@ class EvidenceFactory:
             extracted_from=extracted_from,
         )
 
-    # GH Archive recovery methods
+    # GH Archive recovery methods - require exact timestamp
 
-    def recover_issue(self, repo: str, issue_number: int, date: str) -> IssueObservation:
-        """Recover deleted issue content from GH Archive."""
-        return create_issue_observation_from_gharchive(repo, issue_number, date, self.gharchive)
+    def recover_issue(self, repo: str, issue_number: int, timestamp: str) -> IssueObservation:
+        """Recover deleted issue content from GH Archive.
 
-    def recover_pr(self, repo: str, pr_number: int, date: str) -> IssueObservation:
-        """Recover deleted PR content from GH Archive."""
-        return create_pr_observation_from_gharchive(repo, pr_number, date, self.gharchive)
+        Args:
+            repo: Full repo name (owner/repo)
+            issue_number: Issue number
+            timestamp: ISO timestamp when event occurred (e.g. "2025-07-13T20:30:24Z")
+        """
+        return create_issue_observation_from_gharchive(repo, issue_number, timestamp, self.gharchive)
 
-    def recover_commit(self, repo: str, sha: str, date: str) -> CommitObservation:
-        """Recover commit metadata from GH Archive."""
-        return create_commit_observation_from_gharchive(repo, sha, date, self.gharchive)
+    def recover_pr(self, repo: str, pr_number: int, timestamp: str) -> IssueObservation:
+        """Recover deleted PR content from GH Archive.
 
-    def find_force_pushes(self, repo: str, date: str) -> list[CommitObservation]:
-        """Find force-pushed (overwritten) commits from GH Archive."""
-        return create_force_push_observations_from_gharchive(repo, date, self.gharchive)
+        Args:
+            repo: Full repo name (owner/repo)
+            pr_number: PR number
+            timestamp: ISO timestamp when event occurred
+        """
+        return create_pr_observation_from_gharchive(repo, pr_number, timestamp, self.gharchive)
+
+    def recover_commit(self, repo: str, sha: str, timestamp: str) -> CommitObservation:
+        """Recover commit metadata from GH Archive.
+
+        Args:
+            repo: Full repo name (owner/repo)
+            sha: Commit SHA (full or prefix)
+            timestamp: ISO timestamp when push event occurred
+        """
+        return create_commit_observation_from_gharchive(repo, sha, timestamp, self.gharchive)
+
+    def recover_force_push(self, repo: str, timestamp: str) -> CommitObservation:
+        """Recover force-pushed commit from GH Archive.
+
+        Args:
+            repo: Full repo name (owner/repo)
+            timestamp: ISO timestamp when force push occurred
+        """
+        return create_force_push_observation_from_gharchive(repo, timestamp, self.gharchive)
