@@ -3,25 +3,23 @@ GH Archive Event Parsers.
 
 Functions for parsing GH Archive BigQuery rows into Evidence objects.
 Each parser extracts structured data from raw GH Archive JSON payloads.
-
-These are the same functions as in _creation.py but extracted here for:
-1. Better testability (unit test parsers in isolation)
-2. Clearer separation of concerns
-3. Easier maintenance
-
-The original functions in _creation.py are kept for backward compatibility.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
-from datetime import datetime, timezone
 from typing import Any
 
+from ._helpers import (
+    generate_evidence_id as _generate_evidence_id,
+    make_actor as _make_actor,
+    make_repo_from_full_name as _make_repo,
+    parse_datetime_lenient as _parse_datetime,
+)
 from ._schema import (
     CommitInPush,
     CreateEvent,
+    DeleteEvent,
     EvidenceSource,
     ForkEvent,
     GitHubActor,
@@ -29,66 +27,18 @@ from ._schema import (
     IssueAction,
     IssueCommentEvent,
     IssueEvent,
+    MemberEvent,
     PRAction,
+    PublicEvent,
     PullRequestEvent,
     PushEvent,
     RefType,
+    ReleaseEvent,
     VerificationInfo,
     WatchEvent,
+    WorkflowConclusion,
+    WorkflowRunEvent,
 )
-
-
-def _parse_datetime(dt_str: Any) -> datetime:
-    """Parse datetime from various formats."""
-    if dt_str is None:
-        return datetime.now(timezone.utc)
-    if isinstance(dt_str, datetime):
-        return dt_str
-
-    # Handle string formats
-    if isinstance(dt_str, str):
-        # ISO format with Z
-        if dt_str.endswith("Z"):
-            dt_str = dt_str[:-1] + "+00:00"
-        try:
-            return datetime.fromisoformat(dt_str)
-        except ValueError:
-            pass
-
-        # Try common formats
-        formats = [
-            "%Y-%m-%dT%H:%M:%SZ",
-            "%Y-%m-%dT%H:%M:%S%z",
-            "%Y-%m-%d %H:%M:%S %Z",
-            "%Y-%m-%d %H:%M:%S",
-        ]
-        for fmt in formats:
-            try:
-                return datetime.strptime(dt_str, fmt).replace(tzinfo=timezone.utc)
-            except ValueError:
-                continue
-
-    return datetime.now(timezone.utc)
-
-
-def _generate_evidence_id(prefix: str, *parts: str) -> str:
-    """Generate a deterministic evidence ID."""
-    content = ":".join(parts)
-    hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
-    return f"{prefix}-{hash_val}"
-
-
-def _make_actor(login: str, actor_id: int | None = None) -> GitHubActor:
-    """Create GitHubActor from components."""
-    return GitHubActor(login=login, id=actor_id)
-
-
-def _make_repo(repo_name: str) -> GitHubRepository:
-    """Create GitHubRepository from full name."""
-    parts = repo_name.split("/", 1)
-    if len(parts) == 2:
-        return GitHubRepository(owner=parts[0], name=parts[1], full_name=repo_name)
-    return GitHubRepository(owner="unknown", name=repo_name, full_name=repo_name)
 
 
 class _RowContext:
@@ -259,7 +209,6 @@ def parse_issue_comment_event(row: dict[str, Any]) -> IssueCommentEvent:
 def parse_watch_event(row: dict[str, Any]) -> WatchEvent:
     """Parse GH Archive WatchEvent into WatchEvent evidence."""
     ctx = _RowContext(row)
-    action = ctx.payload.get("action", "started")
 
     return WatchEvent(
         evidence_id=_generate_evidence_id("watch", ctx.repository.full_name, ctx.who.login),
@@ -268,7 +217,6 @@ def parse_watch_event(row: dict[str, Any]) -> WatchEvent:
         what=f"User {ctx.who.login} starred repository",
         repository=ctx.repository,
         verification=ctx.verification,
-        action=action,
     )
 
 
@@ -285,7 +233,123 @@ def parse_fork_event(row: dict[str, Any]) -> ForkEvent:
         what=f"Forked to {fork_full_name}",
         repository=ctx.repository,
         verification=ctx.verification,
-        forkee_full_name=fork_full_name,
+        fork_full_name=fork_full_name,
+    )
+
+
+def parse_delete_event(row: dict[str, Any]) -> DeleteEvent:
+    """Parse GH Archive DeleteEvent into DeleteEvent evidence."""
+    ctx = _RowContext(row)
+
+    ref_type_str = ctx.payload.get("ref_type", "branch")
+    ref_type_map = {"branch": RefType.BRANCH, "tag": RefType.TAG}
+    ref_type = ref_type_map.get(ref_type_str, RefType.BRANCH)
+    ref_name = ctx.payload.get("ref", "")
+
+    return DeleteEvent(
+        evidence_id=_generate_evidence_id("delete", ctx.repository.full_name, ref_type_str, ref_name),
+        when=ctx.when,
+        who=ctx.who,
+        what=f"Deleted {ref_type_str} '{ref_name}'",
+        repository=ctx.repository,
+        verification=ctx.verification,
+        ref_type=ref_type,
+        ref_name=ref_name,
+    )
+
+
+def parse_member_event(row: dict[str, Any]) -> MemberEvent:
+    """Parse GH Archive MemberEvent into MemberEvent evidence."""
+    ctx = _RowContext(row)
+    member = ctx.payload.get("member", {})
+    action = ctx.payload.get("action", "added")
+
+    # MemberEvent actions in GitHub are: added, removed, edited
+    action_map = {"added": "added", "removed": "removed"}
+    normalized_action = action_map.get(action, "added")
+
+    return MemberEvent(
+        evidence_id=_generate_evidence_id("member", ctx.repository.full_name, member.get("login", ""), action),
+        when=ctx.when,
+        who=ctx.who,
+        what=f"Collaborator {member.get('login', 'unknown')} {normalized_action}",
+        repository=ctx.repository,
+        verification=ctx.verification,
+        action=normalized_action,
+        member=GitHubActor(login=member.get("login", "unknown"), id=member.get("id")),
+    )
+
+
+def parse_public_event(row: dict[str, Any]) -> PublicEvent:
+    """Parse GH Archive PublicEvent into PublicEvent evidence."""
+    ctx = _RowContext(row)
+
+    return PublicEvent(
+        evidence_id=_generate_evidence_id("public", ctx.repository.full_name, str(ctx.when.timestamp())),
+        when=ctx.when,
+        who=ctx.who,
+        what=f"Repository {ctx.repository.full_name} made public",
+        repository=ctx.repository,
+        verification=ctx.verification,
+    )
+
+
+def parse_release_event(row: dict[str, Any]) -> ReleaseEvent:
+    """Parse GH Archive ReleaseEvent into ReleaseEvent evidence."""
+    ctx = _RowContext(row)
+    release = ctx.payload.get("release", {})
+    action = ctx.payload.get("action", "published")
+    tag_name = release.get("tag_name", "")
+
+    # Normalize action to valid Literal values
+    action_map = {"published": "published", "created": "created", "deleted": "deleted"}
+    normalized_action = action_map.get(action, "published")
+
+    return ReleaseEvent(
+        evidence_id=_generate_evidence_id("release", ctx.repository.full_name, tag_name, action),
+        when=ctx.when,
+        who=ctx.who,
+        what=f"Release {tag_name} {normalized_action}",
+        repository=ctx.repository,
+        verification=ctx.verification,
+        action=normalized_action,
+        tag_name=tag_name,
+        release_name=release.get("name"),
+        release_body=release.get("body"),
+    )
+
+
+def parse_workflow_run_event(row: dict[str, Any]) -> WorkflowRunEvent:
+    """Parse GH Archive WorkflowRunEvent into WorkflowRunEvent evidence."""
+    ctx = _RowContext(row)
+    workflow_run = ctx.payload.get("workflow_run", {})
+    action = ctx.payload.get("action", "requested")
+
+    # Normalize action
+    action_map = {"requested": "requested", "completed": "completed", "in_progress": "in_progress"}
+    normalized_action = action_map.get(action, "requested")
+
+    # Parse conclusion if completed
+    conclusion = None
+    if normalized_action == "completed":
+        conclusion_str = workflow_run.get("conclusion", "")
+        conclusion_map = {"success": WorkflowConclusion.SUCCESS, "failure": WorkflowConclusion.FAILURE, "cancelled": WorkflowConclusion.CANCELLED}
+        conclusion = conclusion_map.get(conclusion_str)
+
+    workflow_name = workflow_run.get("name", "unknown")
+    head_sha = workflow_run.get("head_sha", "0" * 40)
+
+    return WorkflowRunEvent(
+        evidence_id=_generate_evidence_id("workflow", ctx.repository.full_name, workflow_name, head_sha[:8]),
+        when=ctx.when,
+        who=ctx.who,
+        what=f"Workflow '{workflow_name}' {normalized_action}",
+        repository=ctx.repository,
+        verification=ctx.verification,
+        action=normalized_action,
+        workflow_name=workflow_name,
+        head_sha=head_sha,
+        conclusion=conclusion,
     )
 
 
@@ -297,10 +361,15 @@ _PARSERS = {
     "PushEvent": parse_push_event,
     "IssuesEvent": parse_issue_event,
     "CreateEvent": parse_create_event,
+    "DeleteEvent": parse_delete_event,
     "PullRequestEvent": parse_pull_request_event,
     "IssueCommentEvent": parse_issue_comment_event,
     "WatchEvent": parse_watch_event,
     "ForkEvent": parse_fork_event,
+    "MemberEvent": parse_member_event,
+    "PublicEvent": parse_public_event,
+    "ReleaseEvent": parse_release_event,
+    "WorkflowRunEvent": parse_workflow_run_event,
 }
 
 

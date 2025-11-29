@@ -405,8 +405,9 @@ class FileObservation(Observation):
     observation_type: Literal["file"] = "file"
     file_path: str
     branch: str | None = None
-    content: str
+    content: str = ""  # File content (may be empty for large files)
     content_hash: str | None = None  # SHA256
+    size_bytes: int = 0
 
 
 class WikiObservation(Observation):
@@ -422,7 +423,10 @@ class ForkObservation(Observation):
 
     observation_type: Literal["fork"] = "fork"
     fork_full_name: str
-    parent_full_name: str
+    parent_full_name: str = ""  # The source repository that was forked
+    fork_owner: str | None = None
+    fork_repo: str | None = None
+    forked_at: datetime | None = None
 
 
 class BranchObservation(Observation):
@@ -431,6 +435,7 @@ class BranchObservation(Observation):
     observation_type: Literal["branch"] = "branch"
     branch_name: str
     head_sha: str | None = None
+    protected: bool = False
 
 
 class TagObservation(Observation):
@@ -448,16 +453,21 @@ class ReleaseObservation(Observation):
     tag_name: str
     release_name: str | None = None
     release_body: str | None = None
+    created_at: datetime | None = None
+    published_at: datetime | None = None
+    is_prerelease: bool = False
+    is_draft: bool = False
 
 
 class WaybackSnapshot(BaseModel):
-    """Single Wayback capture."""
+    """Single Wayback capture from CDX API."""
 
-    timestamp: str
-    captured_at: datetime
-    archive_url: HttpUrl
-    original_url: HttpUrl
-    status_code: int = 200
+    timestamp: str  # YYYYMMDDHHMMSS format
+    original: str  # Original URL that was archived
+    digest: str = ""  # SHA-1 of content
+    mimetype: str = ""  # MIME type
+    statuscode: str = "200"  # HTTP status code as string
+    length: str = ""  # Content length as string
 
 
 class SnapshotObservation(Observation):
