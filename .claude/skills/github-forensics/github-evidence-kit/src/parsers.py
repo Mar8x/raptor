@@ -10,32 +10,34 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ._helpers import (
+from .helpers import (
     generate_evidence_id,
     make_actor,
     make_repo_from_full_name,
     parse_datetime_lenient,
 )
-from ._schema import (
+from .schema.common import (
+    EvidenceSource,
+    GitHubActor,
+    IssueAction,
+    PRAction,
+    RefType,
+    VerificationInfo,
+    WorkflowConclusion,
+)
+from .schema.events import (
     CommitInPush,
     CreateEvent,
     DeleteEvent,
-    EvidenceSource,
     ForkEvent,
-    GitHubActor,
-    IssueAction,
     IssueCommentEvent,
     IssueEvent,
     MemberEvent,
-    PRAction,
     PublicEvent,
     PullRequestEvent,
     PushEvent,
-    RefType,
     ReleaseEvent,
-    VerificationInfo,
     WatchEvent,
-    WorkflowConclusion,
     WorkflowRunEvent,
 )
 

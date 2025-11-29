@@ -8,7 +8,7 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
-from ._schema import GitHubActor, GitHubRepository
+from .schema.common import GitHubActor, GitHubRepository
 
 
 def generate_evidence_id(prefix: str, *parts: str) -> str:

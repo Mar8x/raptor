@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src._parsers import (
+from src.parsers import (
     _RowContext,
     parse_create_event,
     parse_delete_event,
@@ -29,7 +29,7 @@ from src._parsers import (
     parse_watch_event,
     parse_workflow_run_event,
 )
-from src._schema import EvidenceSource, IssueAction, RefType, WorkflowConclusion
+from src.schema.common import EvidenceSource, IssueAction, RefType, WorkflowConclusion
 
 
 # =============================================================================

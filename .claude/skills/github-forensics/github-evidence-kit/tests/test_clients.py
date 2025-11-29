@@ -13,37 +13,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src._clients import GHArchiveClient, GitClient, GitHubClient, SourceClient, WaybackClient
-from src._schema import EvidenceSource
-
-
-# =============================================================================
-# SOURCE CLIENT PROTOCOL TESTS
-# =============================================================================
-
-
-class TestSourceClientProtocol:
-    """Test that all clients implement the SourceClient protocol."""
-
-    def test_github_client_is_source_client(self):
-        """GitHubClient implements SourceClient protocol."""
-        client = GitHubClient()
-        assert isinstance(client, SourceClient)
-
-    def test_wayback_client_is_source_client(self):
-        """WaybackClient implements SourceClient protocol."""
-        client = WaybackClient()
-        assert isinstance(client, SourceClient)
-
-    def test_gharchive_client_is_source_client(self):
-        """GHArchiveClient implements SourceClient protocol."""
-        client = GHArchiveClient()
-        assert isinstance(client, SourceClient)
-
-    def test_git_client_is_source_client(self):
-        """GitClient implements SourceClient protocol."""
-        client = GitClient()
-        assert isinstance(client, SourceClient)
+from src.clients.gharchive import GHArchiveClient
+from src.clients.git import GitClient
+from src.clients.github import GitHubClient
+from src.clients.wayback import WaybackClient
+from src.schema.common import EvidenceSource
 
 
 # =============================================================================
@@ -119,11 +93,6 @@ class TestGHArchiveClient:
         """Source property returns GHARCHIVE."""
         client = GHArchiveClient()
         assert client.source == EvidenceSource.GHARCHIVE
-
-    def test_accepts_credentials_path(self):
-        """Can initialize with credentials path."""
-        client = GHArchiveClient(credentials_path="/path/to/creds.json")
-        assert client.credentials_path == "/path/to/creds.json"
 
     def test_accepts_project_id(self):
         """Can initialize with project ID."""

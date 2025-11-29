@@ -1,24 +1,22 @@
 """
 GitHub Forensics Evidence Schema
 
-Evidence objects are created ONLY through the EvidenceFactory which fetches
-and verifies data from trusted third-party sources (GitHub API, GH Archive BigQuery,
-Wayback Machine, security vendor URLs).
+Evidence collection using Collectors that fetch data from trusted sources.
 
 Usage:
-    from src import EvidenceFactory
+    from src.collectors.api import GitHubAPICollector
+    from src.collectors.archive import GHArchiveCollector
+    from src.collectors.local import LocalGitCollector
 
-    factory = EvidenceFactory()
+    # Collectors for various sources
+    github_collector = GitHubAPICollector()
+    archive_collector = GHArchiveCollector()
+    git_collector = LocalGitCollector()
 
-    # Verified from GitHub API
-    commit = factory.commit("aws", "aws-toolkit-vscode", "678851b...")
-    pr = factory.pull_request("aws", "aws-toolkit-vscode", 7710)
-
-    # Verified from GH Archive BigQuery
-    events = factory.events_from_gharchive(timestamp="202507132037", repo="aws/aws-toolkit-vscode")
-
-    # Verified IOC (fetches source URL to confirm value exists)
-    ioc = factory.ioc(IOCType.COMMIT_SHA, "678851b...", source_url="https://...")
+    # Collect evidence
+    commit = github_collector.collect_commit("aws", "aws-toolkit-vscode", "678851b...")
+    events = archive_collector.collect_events(timestamp="202507132037", repo="aws/aws-toolkit-vscode")
+    local_commit = git_collector.collect_commit("HEAD")
 
 For loading previously serialized evidence from JSON:
     from src import load_evidence_from_json
@@ -30,16 +28,14 @@ Type hints (for static analysis and IDE autocomplete):
         from src import CommitObservation, IssueObservation
 """
 
-from typing import Annotated, Union, TYPE_CHECKING
+from typing import Annotated, Union
 
 from pydantic import Field
 
-from ._creation import EvidenceFactory
-from ._store import EvidenceStore
-from ._verification import verify_all
+from .store import EvidenceStore
 
 # Enums - Safe to expose, these are just constants
-from ._schema import (
+from .schema.common import (
     EvidenceSource,
     EventType,
     RefType,
@@ -50,10 +46,10 @@ from ._schema import (
 )
 
 # Type aliases for external use
-from ._schema import AnyEvidence, AnyEvent, AnyObservation
+from .schema.common import AnyEvidence, AnyEvent, AnyObservation
 
 # Import all schema classes for discriminated union and TYPE_CHECKING exports
-from ._schema import (
+from .schema.events import (
     # Events
     PushEvent,
     PullRequestEvent,
@@ -67,6 +63,9 @@ from ._schema import (
     WatchEvent,
     MemberEvent,
     PublicEvent,
+)
+
+from .schema.observations import (
     # Observations
     CommitObservation,
     IssueObservation,
@@ -78,16 +77,14 @@ from ._schema import (
     SnapshotObservation,
     IOC,
     ArticleObservation,
+)
+
+from .schema.common import (
     # Common models (for type hints)
     GitHubActor,
     GitHubRepository,
     VerificationInfo,
-    Event,
-    Observation,
-    CommitAuthor,
-    FileChange,
-    CommitInPush,
-    WaybackSnapshot,
+    VerificationResult,
 )
 
 # Pydantic discriminated union for efficient JSON deserialization
@@ -160,12 +157,8 @@ def load_evidence_from_json(data: dict) -> AnyEvidence:
 
 
 __all__ = [
-    # Factory - Create evidence from sources
-    "EvidenceFactory",
     # Store - Persist and query evidence collections
     "EvidenceStore",
-    # Verification - Validate evidence against sources
-    "verify_all",
     # Enums
     "EvidenceSource",
     "EventType",
@@ -184,6 +177,7 @@ __all__ = [
     "GitHubActor",
     "GitHubRepository",
     "VerificationInfo",
+    "VerificationResult",
     "Event",
     "Observation",
     "CommitAuthor",
@@ -213,3 +207,7 @@ __all__ = [
     "IOC",
     "ArticleObservation",
 ]
+
+# Import base classes and helper models from their respective modules
+from .schema.events import Event, CommitInPush
+from .schema.observations import Observation, CommitAuthor, FileChange, WaybackSnapshot

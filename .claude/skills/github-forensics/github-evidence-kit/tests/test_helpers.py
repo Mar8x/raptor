@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src._helpers import (
+from src.helpers import (
     generate_evidence_id,
     make_actor,
     make_repo,

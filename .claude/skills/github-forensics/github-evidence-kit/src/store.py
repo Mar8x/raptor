@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator, Sequence
 
-from ._schema import AnyEvidence, AnyEvent, AnyObservation, EvidenceSource
+from .schema.common import AnyEvidence, AnyEvent, AnyObservation, EvidenceSource
 
 
 class EvidenceStore:
@@ -177,5 +177,7 @@ class EvidenceStore:
 
     def verify_all(self) -> tuple[bool, list[str]]:
         """Verify all evidence against their original sources."""
-        from ._verification import verify_all as _verify_all
-        return _verify_all(self._evidence)
+        from .verifiers.consistency import ConsistencyVerifier
+        verifier = ConsistencyVerifier()
+        result = verifier.verify_all(self._evidence)
+        return result.is_valid, result.errors

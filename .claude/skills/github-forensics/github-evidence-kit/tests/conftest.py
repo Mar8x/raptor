@@ -16,7 +16,7 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src import EvidenceFactory, EvidenceStore, load_evidence_from_json
+from src import EvidenceStore, load_evidence_from_json
 
 
 # =============================================================================
@@ -210,8 +210,6 @@ def sample_issue_event(sample_issue_event_data):
 # =============================================================================
 
 
-@pytest.fixture
-def factory() -> EvidenceFactory:
     """Create a fresh EvidenceFactory instance."""
     return EvidenceFactory()
 
