@@ -255,29 +255,40 @@ class GHArchiveClient:
         from_date: str = "",
         to_date: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Query GH Archive for events."""
+        """Query GH Archive for events using parameterized queries."""
+        from google.cloud import bigquery
+
         client = self._get_client()
 
         # Build table reference - use daily table
         # from_date is YYYYMMDDHHMM format (12 digits), extract day part
         day = from_date[:8]
+        # Table names can't be parameterized, but day is validated format
+        if not day.isdigit() or len(day) != 8:
+            raise ValueError(f"Invalid date format: {from_date}")
         table = f"`githubarchive.day.{day}`"
 
-        # Build WHERE clauses
+        # Build WHERE clauses with parameterized values
         clauses = []
+        params = []
 
         # Filter by hour and minute using created_at timestamp
         hour = int(from_date[8:10])
         minute = int(from_date[10:12])
-        clauses.append(f"EXTRACT(HOUR FROM created_at) = {hour}")
-        clauses.append(f"EXTRACT(MINUTE FROM created_at) = {minute}")
+        clauses.append("EXTRACT(HOUR FROM created_at) = @hour")
+        clauses.append("EXTRACT(MINUTE FROM created_at) = @minute")
+        params.append(bigquery.ScalarQueryParameter("hour", "INT64", hour))
+        params.append(bigquery.ScalarQueryParameter("minute", "INT64", minute))
 
         if repo:
-            clauses.append(f"repo.name = '{repo}'")
+            clauses.append("repo.name = @repo")
+            params.append(bigquery.ScalarQueryParameter("repo", "STRING", repo))
         if actor:
-            clauses.append(f"actor.login = '{actor}'")
+            clauses.append("actor.login = @actor")
+            params.append(bigquery.ScalarQueryParameter("actor", "STRING", actor))
         if event_type:
-            clauses.append(f"type = '{event_type}'")
+            clauses.append("type = @event_type")
+            params.append(bigquery.ScalarQueryParameter("event_type", "STRING", event_type))
 
         where = " AND ".join(clauses) if clauses else "1=1"
 
@@ -296,7 +307,8 @@ class GHArchiveClient:
         LIMIT 1000
         """
 
-        results = client.query(query)
+        job_config = bigquery.QueryJobConfig(query_parameters=params)
+        results = client.query(query, job_config=job_config)
         return [dict(row) for row in results]
 
 

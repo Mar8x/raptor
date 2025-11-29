@@ -123,6 +123,8 @@ for item in data:
 
 ### Events (from GH Archive)
 
+All 12 GitHub event types are supported:
+
 | Type | Description |
 |------|-------------|
 | PushEvent | Commits pushed |
@@ -132,8 +134,11 @@ for item in data:
 | CreateEvent | Branch/tag created |
 | DeleteEvent | Branch/tag deleted |
 | ForkEvent | Repository forked |
+| WatchEvent | Repository starred |
+| MemberEvent | Collaborator added/removed |
+| PublicEvent | Repository made public |
+| ReleaseEvent | Release published/created/deleted |
 | WorkflowRunEvent | GitHub Actions run |
-| ReleaseEvent | Release published |
 
 ### Observations (from GitHub API, Wayback, Vendors)
 
