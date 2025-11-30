@@ -52,7 +52,26 @@ class _RowContext:
         self.payload = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
         self.when = parse_datetime_lenient(row.get("created_at"))
         self.who = make_actor(row.get("actor_login", "unknown"), row.get("actor_id"))
-        self.repository = make_repo_from_full_name(row.get("repo_name", "unknown/unknown"))
+
+        # Extract repository name from row - try multiple locations
+        repo_name = row.get("repo_name") or row.get("repo", {}).get("name")
+        if not repo_name:
+            # Try extracting from payload as last resort
+            repo_obj = self.payload.get("repository") or row.get("repo", {})
+            owner = repo_obj.get("owner", {}).get("login") if isinstance(repo_obj.get("owner"), dict) else repo_obj.get("owner")
+            name = repo_obj.get("name")
+            if owner and name:
+                repo_name = f"{owner}/{name}"
+
+        # Raise error if we still couldn't extract valid repo name
+        if not repo_name:
+            raise ValueError(
+                f"Cannot extract repository name from GH Archive row. "
+                f"Row ID: {row.get('id', 'unknown')}, Event Type: {row.get('type', 'unknown')}. "
+                f"Available keys: {list(row.keys())}"
+            )
+
+        self.repository = make_repo_from_full_name(repo_name)
 
         # Determine table from timestamp if not provided
         if not table and self.when:
