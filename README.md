@@ -330,7 +330,7 @@ Windsurf, Copilot, or Codex? Devin? Cline? Antigravity?
 Hacker poetry? :)
 
 Chat with us on the #raptor channel at the Prompt||GTFO Slack:
-https://join.slack.com/t/promptgtfo/shared_invite/zt-3alf92eqe-BpVLxPbWTI50Tbl11Hl46Q
+https://join.slack.com/t/promptgtfo/shared_invite/zt-3kbaqgq2p-O8MAvwU1SPc10KjwJ8MN2w
 
 **See:** `docs/EXTENDING_LAUNCHER.md` for developer guide
 
@@ -353,4 +353,4 @@ Make sure and review the licenses for the various tools. For example, CodeQL doe
 **Documentation:** See `docs/` directory
 
 Chat with us on the #raptor channel at the Prompt||GTFO Slack:
-https://join.slack.com/t/promptgtfo/shared_invite/zt-3alf92eqe-BpVLxPbWTI50Tbl11Hl46Q
+https://join.slack.com/t/promptgtfo/shared_invite/zt-3kbaqgq2p-O8MAvwU1SPc10KjwJ8MN2w
